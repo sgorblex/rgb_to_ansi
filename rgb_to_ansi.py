@@ -43,7 +43,6 @@ ansi_numbers = {
     "bright_magenta": "95",
     "bright_cyan": "96",
     "bright_white": "97",
-    "reset": "0"
 }
 
 
@@ -62,27 +61,29 @@ def closest_ansi_color(r, g, b, palette):
 
 
 # RESET AFTER EACH CHAR
-def convert_rgb_to_ansi(input_string, palette):
-    pattern = re.compile(r'\033\[38;2;(\d+);(\d+);(\d+)m(.)')
+def convert_rgb_to_ansi(input_string, palette, reset):
+    if reset:
+        pattern = re.compile(r'\033\[38;2;(\d+);(\d+);(\d+)m(.)')
 
-    def replace_match(match):
-        r, g, b = map(int, match.groups()[0:3])
-        c = str(match.groups()[3])
-        return '\033['+ansi_numbers[closest_ansi_color(r, g, b, palette)]+'m' + c + '\033[0m'
+        def replace_match(match):
+            groups = match.groups()
+            r, g, b = map(int, groups[:3])
+            c = groups[3]
+            return '\033['+ansi_numbers[closest_ansi_color(r, g, b, palette)]+'m' + c + '\033[0m'
 
-    return pattern.sub(replace_match, input_string)
+        return pattern.sub(replace_match, input_string)
 
-# DO NOT RESET AFTER EACH CHAR
-# def convert_rgb_to_ansi(input_string):
-#     pattern = re.compile(r'\033\[38;2;(\d+);(\d+);(\d+)m')
-#
-#     def replace_match(match):
-#         r, g, b = map(int, match.groups())
-#         return '\033['+ansi_numbers[closest_ansi_color(r, g, b, palette)]+'m'
-#
-#     return pattern.sub(replace_match, input_string)
+    else:
+        pattern = re.compile(r'\033\[38;2;(\d+);(\d+);(\d+)m')
+
+        def replace_match(match):
+            r, g, b = map(int, match.groups())
+            return '\033['+ansi_numbers[closest_ansi_color(r, g, b, palette)]+'m'
+
+        return pattern.sub(replace_match, input_string)
 
 
+# TODO: could be improved to work on mnulticharacter colored sequences
 def prune_ansi_repetitions(input_string):
     res = input_string
 
@@ -121,6 +122,9 @@ def load_palette(file_path):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Convert RGB color codes to ANSI escape codes")
     parser.add_argument("--palette", help="Path to custom palette JSON file")
+    parser.add_argument('--no-pruning', action='store_true', help='Disable pruning of repeated ANSI codes, which compresses the output when it has consecutive same-colored pixels. Needed if the input is not a single character per color code.')
+    parser.add_argument('--no-reset', action='store_true', help='Does not reset color after each character. Might bring to wrong colors in the output.')
+
     args = parser.parse_args()
 
     if args.palette:
@@ -129,7 +133,8 @@ if __name__ == "__main__":
         palette = ansi_rgb
 
 
-    input_string = sys.stdin.read()  # Read input from standard input
-    converted_string = convert_rgb_to_ansi(input_string, palette)
-    converted_string = prune_ansi_repetitions(converted_string)
+    input_string = sys.stdin.read()
+    converted_string = convert_rgb_to_ansi(input_string, palette , not args.no_reset)
+    if not args.no_pruning:
+        converted_string = prune_ansi_repetitions(converted_string)
     print(converted_string)
