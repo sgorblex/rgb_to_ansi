@@ -6,6 +6,7 @@ from math import sqrt
 import argparse
 import json
 
+# default palette
 ansi_rgb = {
     "black": (0, 0, 0),
     "red": (181, 5, 5),
@@ -45,26 +46,6 @@ ansi_numbers = {
     "reset": "0"
 }
 
-ansi_codes = {
-    "black": "\033[30m",
-    "red": "\033[31m",
-    "green": "\033[32m",
-    "yellow": "\033[33m",
-    "blue": "\033[34m",
-    "magenta": "\033[35m",
-    "cyan": "\033[36m",
-    "white": "\033[37m",
-    "bright_black": "\033[90m",
-    "bright_red": "\033[91m",
-    "bright_green": "\033[92m",
-    "bright_yellow": "\033[93m",
-    "bright_blue": "\033[94m",
-    "bright_magenta": "\033[95m",
-    "bright_cyan": "\033[96m",
-    "bright_white": "\033[97m",
-    "reset": "\033[0m"
-}
-
 
 def closest_ansi_color(r, g, b, palette):
     """Find the ANSI color closest to the given RGB values."""
@@ -79,17 +60,15 @@ def closest_ansi_color(r, g, b, palette):
 
     return closest_color
 
+
 # RESET AFTER EACH CHAR
 def convert_rgb_to_ansi(input_string, palette):
-    # pattern = re.compile(r'\033\[38;2;(\d+);(\d+);(\d+)m')
     pattern = re.compile(r'\033\[38;2;(\d+);(\d+);(\d+)m(.)')
 
     def replace_match(match):
-        # r, g, b = map(int, match.groups())
         r, g, b = map(int, match.groups()[0:3])
         c = str(match.groups()[3])
-        # return ansi_codes[closest_ansi_color(r, g, b)]
-        return ansi_codes[closest_ansi_color(r, g, b, palette)] + c + ansi_codes['reset']
+        return '\033['+ansi_numbers[closest_ansi_color(r, g, b, palette)]+'m' + c + '\033[0m'
 
     return pattern.sub(replace_match, input_string)
 
@@ -99,23 +78,24 @@ def convert_rgb_to_ansi(input_string, palette):
 #
 #     def replace_match(match):
 #         r, g, b = map(int, match.groups())
-#         # return ansi_codes[closest_ansi_color(r, g, b)]
-#         return ansi_codes[closest_ansi_color(r, g, b)]
+#         return '\033['+ansi_numbers[closest_ansi_color(r, g, b, palette)]+'m'
 #
 #     return pattern.sub(replace_match, input_string)
+
 
 def prune_ansi_repetitions(input_string):
     res = input_string
 
-    for color in ansi_codes:
-        pattern = r'(\033\['+ansi_numbers[color]+r'm.(\033\[0m)?){2,}'
+    for colornumber in ansi_numbers.values():
+        pattern = r'(\033\['+colornumber+r'm.(\033\[0m)?){2,}'
         doesmatch = re.search(pattern, res)
         if doesmatch:
             def remove_pattern(match):
-                singlepattern = r'\033\['+ansi_numbers[color]+r'm(.)(\033\[0m)?'
+                singlepattern = r'\033\['+colornumber+r'm(.)(\033\[0m)?'
                 def remove_single(matchsingle):
                     return matchsingle.group(1)
-                return ansi_codes[color] + re.sub(singlepattern, remove_single, match.group(0)) + ansi_codes['reset']
+                return '\033['+colornumber+'m' + re.sub(singlepattern, remove_single, match.group(0)) + '\033[0m'
+        
             res = re.sub(pattern, remove_pattern, res)
     return res
 
