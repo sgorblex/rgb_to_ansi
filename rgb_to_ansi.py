@@ -3,6 +3,8 @@
 import sys
 import re
 from math import sqrt
+import argparse
+import json
 
 ansi_rgb = {
     "black": (0, 0, 0),
@@ -64,12 +66,12 @@ ansi_codes = {
 }
 
 
-def closest_ansi_color(r, g, b):
+def closest_ansi_color(r, g, b, palette):
     """Find the ANSI color closest to the given RGB values."""
     closest_color = "black"
     min_distance = float('inf')
 
-    for name, (cr, cg, cb) in ansi_rgb.items():
+    for name, (cr, cg, cb) in palette.items():
         distance = sqrt((r - cr)**2 + (g - cg)**2 + (b - cb)**2)
         if distance < min_distance:
             min_distance = distance
@@ -78,7 +80,7 @@ def closest_ansi_color(r, g, b):
     return closest_color
 
 # RESET AFTER EACH CHAR
-def convert_rgb_to_ansi(input_string):
+def convert_rgb_to_ansi(input_string, palette):
     # pattern = re.compile(r'\033\[38;2;(\d+);(\d+);(\d+)m')
     pattern = re.compile(r'\033\[38;2;(\d+);(\d+);(\d+)m(.)')
 
@@ -87,7 +89,7 @@ def convert_rgb_to_ansi(input_string):
         r, g, b = map(int, match.groups()[0:3])
         c = str(match.groups()[3])
         # return ansi_codes[closest_ansi_color(r, g, b)]
-        return ansi_codes[closest_ansi_color(r, g, b)] + c + ansi_codes['reset']
+        return ansi_codes[closest_ansi_color(r, g, b, palette)] + c + ansi_codes['reset']
 
     return pattern.sub(replace_match, input_string)
 
@@ -117,8 +119,37 @@ def prune_ansi_repetitions(input_string):
             res = re.sub(pattern, remove_pattern, res)
     return res
 
+def validate_palette(user_palette, default_palette):
+    validated_palette = default_palette.copy()
+    for color, value in user_palette.items():
+        if color in default_palette and isinstance(value, (list, tuple)) and len(value) == 3 and all(isinstance(v, int) and 0 <= v <= 255 for v in value):
+            validated_palette[color] = tuple(value)
+        else:
+            print(f"'{color}' is not a valid color, ignoring")
+    return validated_palette
+
+def load_palette(file_path):
+    try:
+        with open(file_path, 'r') as file:
+            user_palette = json.load(file)
+        return validate_palette(user_palette, ansi_rgb)
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        print(f"Error loading palette file: {e}. Falling back to default.")
+        return ansi_rgb
+
+
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Convert RGB color codes to ANSI escape codes")
+    parser.add_argument("--palette", help="Path to custom palette JSON file")
+    args = parser.parse_args()
+
+    if args.palette:
+        palette = load_palette(args.palette)
+    else:
+        palette = ansi_rgb
+
+
     input_string = sys.stdin.read()  # Read input from standard input
-    converted_string = convert_rgb_to_ansi(input_string)
+    converted_string = convert_rgb_to_ansi(input_string, palette)
     converted_string = prune_ansi_repetitions(converted_string)
     print(converted_string)
